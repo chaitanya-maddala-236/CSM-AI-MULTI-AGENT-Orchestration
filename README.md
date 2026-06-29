@@ -151,163 +151,20 @@ CS Copilot is built as a **reusable multi-agent platform** with strict separatio
 
 <img width="2720" height="3600" alt="cs_copilot_agent_pipeline" src="https://github.com/user-attachments/assets/691023e5-6cee-4a04-8fa8-9359e8d8096b" />
 
-```
-TRIGGER: meeting.uploaded / CRM update / manual "Run Analysis"
-         │
-         ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                     LangGraph WorkflowState                     │
-│  { customer_id, customer_data, memory_context, agent_outputs,  │
-│    recommendations, errors, token_usage, started_at }          │
-└──────────────────────────┬──────────────────────────────────────┘
-                           │
-                           ▼
-         ┌─────────────────────────────────┐
-         │         1. MemoryAgent          │
-         │  • Loads past recommendations   │
-         │  • Loads interaction history    │
-         │  • Loads outcome feedback       │
-         │  • Builds memory context        │
-         │  • Prevents repetition          │
-         └─────────────────┬───────────────┘
-                           │
-                           ▼
-         ┌─────────────────────────────────┐
-         │         2. PlannerAgent         │
-         │  • Reads customer health/churn  │
-         │  • Reads memory context         │
-         │  • Decides which agents to run  │
-         │  • Sets priority ordering       │
-         │  Returns: ["interaction",       │
-         │    "sentiment", "usage",        │
-         │    "knowledge", "recommend"]    │
-         └─────────────────┬───────────────┘
-                           │
-           ┌───────────────┼───────────────┐
-           │               │               │
-           ▼               ▼               ▼
-  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐
-  │3.Interaction│  │ 4. Sentiment│  │  5. Usage   │
-  │   Agent     │  │   Agent     │  │   Agent     │
-  │             │  │             │  │             │
-  │• Loads last │  │• Scores all │  │• Feature    │
-  │  5 meetings │  │  meetings   │  │  adoption   │
-  │• Extracts   │  │• Detects    │  │• Engagement │
-  │  topics     │  │  trends     │  │  drop alerts│
-  │• Action     │  │• Risk flags │  │• Capacity   │
-  │  items      │  │             │  │  headroom   │
-  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘
-         │                │                │
-         └────────────────┼────────────────┘
-                          │
-                          ▼
-         ┌─────────────────────────────────┐
-         │       6. KnowledgeAgent         │
-         │  • Queries ChromaDB RAG store   │
-         │  • Retrieves top-k playbooks    │
-         │  • Applies business rules       │
-         │  • Matches to customer context  │
-         └─────────────────┬───────────────┘
-                           │
-                           ▼
-         ┌─────────────────────────────────┐
-         │     7. RecommendationAgent      │
-         │                                 │
-         │  INPUT: all agent outputs       │
-         │  + memory context               │
-         │  + knowledge retrievals         │
-         │  + customer data                │
-         │                                 │
-         │  LLM PROMPT: generates 3-5      │
-         │  next-best-actions with:        │
-         │  • title + description          │
-         │  • category + priority          │
-         │  • evidence[] (cited signals)   │
-         │  • reasoning (chain-of-thought) │
-         │  • confidence_score (0-100)     │
-         │  • risk_score                   │
-         │  • concrete action steps        │
-         └─────────────────┬───────────────┘
-                           │
-                           ▼
-         ┌─────────────────────────────────┐
-         │      8. HITL Review Gate        │
-         │                                 │
-         │  confidence >= threshold?       │
-         │       AND auto_approve=true?    │
-         │                                 │
-         │  YES → status = "approved"      │
-         │   NO → status = "pending"       │
-         │         (CSM reviews in UI)     │
-         └─────────────────┬───────────────┘
-                           │
-                           ▼
-         ┌─────────────────────────────────┐
-         │      9. Persisted Results       │
-         │                                 │
-         │  • recommendations table        │
-         │  • agent_runs table (full log)  │
-         │  • timeline entry               │
-         │  • WebSocket notification       │
-         └─────────────────────────────────┘
-```
 
 ---
 
 ## Data Flow: Ingestion → Recommendation
+<img width="2760" height="1680" alt="ingestion_to_classification_flow" src="https://github.com/user-attachments/assets/f4ad333a-fc03-4eb1-82a1-18904cde46d6" />
 
-```
-CSM Pastes Text                     AI Extracts Signals
-     │                                      │
-     ▼                                      ▼
-┌──────────────┐   POST /ingestion   ┌──────────────────┐
-│  DataIngestion│ ─────────────────▶ │  IngestedInteraction│
-│  Form (UI)   │   { title,         │  table (Postgres) │
-│              │     raw_content,   │                   │
-│              │     source_type,   │  status: new      │
-│              │     customer_id }  │                   │
-└──────────────┘                    └────────┬─────────┘
-                                             │ BackgroundTask
-                                             ▼
-                                    ┌──────────────────┐
-                                    │  _classify_text() │
-                                    │  (Fast LLM call) │
-                                    │                   │
-                                    │  → sentiment      │
-                                    │  → key_topics[]   │
-                                    │  → risks[]        │
-                                    │  → opportunities[]│
-                                    │  → ai_summary     │
-                                    └────────┬─────────┘
-                                             │
-                        ┌────────────────────┼─────────────────┐
-                        │                    │                  │
-                        ▼                    ▼                  ▼
-               ┌──────────────┐    ┌──────────────┐   ┌──────────────┐
-               │  Meeting      │    │  Timeline     │   │  AI Preview  │
-               │  table        │    │  entry        │   │  Panel (UI)  │
-               │  (mirrored)   │    │  (event log)  │   │  HITL review │
-               └──────────────┘    └──────────────┘   └──────┬───────┘
-                                                              │
-                                               CSM clicks "Approve & Analyze"
-                                                              │
-                                                              ▼
-                                                   POST /ingestion/{id}/
-                                                        trigger-workflow
-                                                              │
-                                                              ▼
-                                                   ┌──────────────────┐
-                                                   │  Full LangGraph  │
-                                                   │  Workflow Run    │
-                                                   │  (7 agents)      │
-                                                   └──────────────────┘
-                                                              │
-                                                              ▼
-                                                   Recommendations appear
-                                                   in Approvals queue
-```
+That's the intake half — CSM input through classification to the human-in-the-loop preview. Once the CSM clicks approve, it triggers the full LangGraph workflow, which is where the actual recommendation gets built
 
----
+<img width="2720" height="2504" alt="agent_workflow_to_recommendation_flow" src="https://github.com/user-attachments/assets/d3c6e243-9ad1-41e6-92bd-57679b206e37" />
+
+And the final piece — what happens after the HITL gate decides:
+
+<img width="2720" height="1160" alt="hitl_gate_to_persisted_recommendation" src="https://github.com/user-attachments/assets/9acacf38-3c74-4862-a407-2d4f837f90ae" />
+
 
 ## Module Reference
 
