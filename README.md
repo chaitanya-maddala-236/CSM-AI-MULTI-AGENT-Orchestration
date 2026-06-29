@@ -75,6 +75,7 @@ CS Copilot is built as a **reusable multi-agent platform** with strict separatio
 ---
 
 ## System Architecture Diagram
+<img width="1440" height="1800" alt="image" src="https://github.com/user-attachments/assets/5ff56ea2-0f05-4ea1-8584-a86170d90666" />
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
