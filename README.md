@@ -353,4 +353,39 @@ pytest tests/ -v
 
 ---
 
-*Built with ❤️ on LangGraph + FastAPI + React 18*
+## Key Design Decisions
+
+### 1. Data-First Recommendations
+Every recommendation is grounded in real stored data (meetings, usage, health scores, tickets) — the LLM never fabricates context. Evidence arrays and confidence scores are returned with every recommendation.
+
+### 2. Human-in-the-Loop (HITL) by Default
+AI outputs are always shown to a human before triggering customer-facing actions. The HITL gate is not optional — it is enforced in the LangGraph workflow and the API route.
+
+### 3. Graceful Degradation
+If the LLM is unavailable, rule-based heuristics in each agent produce recommendations from stored data patterns. The platform remains functional without an active LLM connection.
+
+### 4. LLM Provider Agnostic
+A `LLMFactory` (core/llm_factory.py) auto-detects which API key is present in `.env` and builds the appropriate LangChain client. Switching between OpenAI, Groq (free tier), and Gemini requires only a `.env` change.
+
+### 5. Explainability as a First-Class Feature
+Every recommendation ships with:
+- `evidence[]` — cited data points that informed the decision
+- `reasoning` — chain-of-thought explanation
+- `confidence_score` — 0–100 numeric score
+- `priority` — high / medium / low with risk score
+
+### 6. Reusable Agent Interface
+Each agent exposes a single standard interface:
+```python
+async def agent_node(state: WorkflowState) -> WorkflowState
+```
+This makes agents independently testable, swappable, and extensible.
+
+### 7. Memory & Learning Loop
+Past recommendation outcomes (success / partial / failed) are injected into every future prompt for the same customer, preventing the AI from repeating rejected actions and improving over time.
+
+### 8. Event-Driven Architecture
+Redis Pub/Sub decouples the agent workflow from the API layer. Long-running agent tasks publish events; the frontend receives real-time updates via WebSocket.
+
+---
+
