@@ -75,7 +75,8 @@ CS Copilot is built as a **reusable multi-agent platform** with strict separatio
 ---
 
 ## System Architecture Diagram
-<img width="1440" height="1800" alt="image" src="https://github.com/user-attachments/assets/5ff56ea2-0f05-4ea1-8584-a86170d90666" />
+<img width="2720" height="3280" alt="cs_copilot_system_architecture" src="https://github.com/user-attachments/assets/2517aef9-ae03-430c-aa78-07ef500f8e21" />
+
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -147,6 +148,8 @@ CS Copilot is built as a **reusable multi-agent platform** with strict separatio
 ---
 
 ## Agent Pipeline Diagram
+
+<img width="2720" height="3600" alt="cs_copilot_agent_pipeline" src="https://github.com/user-attachments/assets/691023e5-6cee-4a04-8fa8-9359e8d8096b" />
 
 ```
 TRIGGER: meeting.uploaded / CRM update / manual "Run Analysis"
